@@ -22,7 +22,7 @@ type alias Model =
     { modules : List Module
     , activeModule : ModuleId
     , activePage : PageId
-    , isModuleSwitcherOpen : Boolean
+    , isModuleSwitcherOpen : Bool
     }
 
 
