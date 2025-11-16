@@ -59,11 +59,63 @@ npm run clean
 
 After building, open `index.html` in your browser to see the application.
 
+## Deployment
+
+This project is configured for easy deployment to free hosting services.
+
+### GitHub Pages
+
+The project includes a GitHub Actions workflow that automatically deploys to GitHub Pages on every push to the `main` branch.
+
+**Setup:**
+1. Go to your repository settings on GitHub
+2. Navigate to **Pages** under "Code and automation"
+3. Under **Source**, select "GitHub Actions"
+4. Push to the `main` branch to trigger deployment
+5. Your site will be available at `https://<username>.github.io/<repository>/`
+
+The workflow file is located at `.github/workflows/deploy.yml`.
+
+### Netlify
+
+**Option 1: Automatic deployment from Git**
+1. Sign up at [netlify.com](https://netlify.com)
+2. Click "Add new site" → "Import an existing project"
+3. Connect your GitHub repository
+4. Netlify will automatically detect the build settings from `netlify.toml`
+5. Click "Deploy site"
+
+**Option 2: Manual deployment**
+```bash
+# Install Netlify CLI
+npm install -g netlify-cli
+
+# Build the project
+npm run build
+
+# Deploy
+netlify deploy --prod --dir=dist
+```
+
+### Vercel, Cloudflare Pages, or other services
+
+The build output is in the `dist/` directory. Configure your hosting service to:
+- **Build command:** `npm run build`
+- **Publish directory:** `dist`
+- **Node version:** 20
+
 ## Technologies
 
 - **Elm 0.19.1** - Functional programming language for building web applications
 - **Tailwind CSS 3.4** - Utility-first CSS framework
 - **elm-watch** - Development server with hot module replacement
+
+## Production Build
+
+The production build includes:
+- **Optimized Elm code** - Compiled with `--optimize` flag for smaller bundle size
+- **Minified CSS** - Tailwind CSS with unused styles purged and minified
+- **Processed HTML** - Paths automatically adjusted for the dist directory
 
 ## Note
 
