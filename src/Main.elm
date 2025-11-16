@@ -1,17 +1,23 @@
 module Main exposing (main)
 
 import Browser
+import Browser.Navigation as Nav
 import Html exposing (Html, button, div, h1, header, nav, span, text, ul, li, a)
 import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
+import Route exposing (Route)
+import Url exposing (Url)
 
 
 main : Program () Model Msg
 main =
-    Browser.sandbox
+    Browser.application
         { init = init
         , view = view
         , update = update
+        , subscriptions = \_ -> Sub.none
+        , onUrlChange = UrlChanged
+        , onUrlRequest = LinkClicked
         }
 
 
@@ -19,7 +25,9 @@ main =
 
 
 type alias Model =
-    { modules : List Module
+    { key : Nav.Key
+    , route : Route
+    , modules : List Module
     , activeModule : ModuleId
     , activePage : PageId
     , isModuleSwitcherOpen : Bool
@@ -49,54 +57,95 @@ type PageId
     = PageId String
 
 
-init : Model
-init =
-    { modules =
-        [ { id = ModuleA
-          , name = "Module A"
-          , pages =
-                [ { id = PageId "dashboard", name = "Dashboard" }
-                , { id = PageId "analytics", name = "Analytics" }
-                , { id = PageId "reports", name = "Reports" }
-                ]
-          }
-        , { id = ModuleB
-          , name = "Module B"
-          , pages =
-                [ { id = PageId "overview", name = "Overview" }
-                , { id = PageId "details", name = "Details" }
-                , { id = PageId "settings", name = "Settings" }
-                ]
-          }
-        , { id = ModuleC
-          , name = "Module C"
-          , pages =
-                [ { id = PageId "home", name = "Home" }
-                , { id = PageId "profile", name = "Profile" }
-                , { id = PageId "preferences", name = "Preferences" }
-                ]
-          }
-        ]
-    , activeModule = ModuleA
-    , activePage = PageId "dashboard"
-    , isModuleSwitcherOpen = False
-    }
+init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
+init _ url key =
+    let
+        route =
+            Route.fromUrl url
+                |> Maybe.withDefault Route.Root
+
+        ( activeModule, activePage ) =
+            routeToModuleAndPage route
+    in
+    ( { key = key
+      , route = route
+      , modules =
+            [ { id = ModuleA
+              , name = "Module A"
+              , pages =
+                    [ { id = PageId "dashboard", name = "Dashboard" }
+                    , { id = PageId "analytics", name = "Analytics" }
+                    , { id = PageId "reports", name = "Reports" }
+                    ]
+              }
+            , { id = ModuleB
+              , name = "Module B"
+              , pages =
+                    [ { id = PageId "overview", name = "Overview" }
+                    , { id = PageId "details", name = "Details" }
+                    , { id = PageId "settings", name = "Settings" }
+                    ]
+              }
+            , { id = ModuleC
+              , name = "Module C"
+              , pages =
+                    [ { id = PageId "home", name = "Home" }
+                    , { id = PageId "profile", name = "Profile" }
+                    , { id = PageId "preferences", name = "Preferences" }
+                    ]
+              }
+            ]
+      , activeModule = activeModule
+      , activePage = activePage
+      , isModuleSwitcherOpen = False
+      }
+    , Cmd.none
+    )
 
 
 -- UPDATE
 
 
 type Msg
-    = ToggleModuleSwitcher
+    = LinkClicked Browser.UrlRequest
+    | UrlChanged Url
+    | ToggleModuleSwitcher
     | SelectModule ModuleId
     | SelectPage PageId
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        LinkClicked urlRequest ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Nav.pushUrl model.key (Url.toString url) )
+
+                Browser.External href ->
+                    ( model, Nav.load href )
+
+        UrlChanged url ->
+            let
+                route =
+                    Route.fromUrl url
+                        |> Maybe.withDefault Route.Root
+
+                ( activeModule, activePage ) =
+                    routeToModuleAndPage route
+            in
+            ( { model
+                | route = route
+                , activeModule = activeModule
+                , activePage = activePage
+              }
+            , Cmd.none
+            )
+
         ToggleModuleSwitcher ->
-            { model | isModuleSwitcherOpen = not model.isModuleSwitcherOpen }
+            ( { model | isModuleSwitcherOpen = not model.isModuleSwitcherOpen }
+            , Cmd.none
+            )
 
         SelectModule moduleId ->
             let
@@ -107,29 +156,44 @@ update msg model =
                         |> Maybe.andThen (\m -> List.head m.pages)
                         |> Maybe.map .id
                         |> Maybe.withDefault (PageId "")
+
+                route =
+                    moduleAndPageToRoute moduleId firstPage
             in
-            { model
+            ( { model
                 | activeModule = moduleId
                 , activePage = firstPage
                 , isModuleSwitcherOpen = False
-            }
+              }
+            , Route.pushUrl model.key route
+            )
 
         SelectPage pageId ->
-            { model | activePage = pageId }
+            let
+                route =
+                    moduleAndPageToRoute model.activeModule pageId
+            in
+            ( { model | activePage = pageId }
+            , Route.pushUrl model.key route
+            )
 
 
 -- VIEW
 
 
-view : Model -> Html Msg
+view : Model -> Browser.Document Msg
 view model =
-    div [ class "min-h-screen bg-gray-100 flex flex-col" ]
-        [ viewHeader model
-        , div [ class "flex flex-1" ]
-            [ viewSidebar model
-            , viewMainContent model
+    { title = getPageTitle model
+    , body =
+        [ div [ class "min-h-screen bg-gray-100 flex flex-col" ]
+            [ viewHeader model
+            , div [ class "flex flex-1" ]
+                [ viewSidebar model
+                , viewMainContent model
+                ]
             ]
         ]
+    }
 
 
 viewHeader : Model -> Html Msg
@@ -289,3 +353,76 @@ getPageName (PageId pageIdStr) model =
         |> List.head
         |> Maybe.map .name
         |> Maybe.withDefault pageIdStr
+
+
+getPageTitle : Model -> String
+getPageTitle model =
+    getPageName model.activePage model ++ " - " ++ getModuleName model.activeModule
+
+
+routeToModuleAndPage : Route -> ( ModuleId, PageId )
+routeToModuleAndPage route =
+    case route of
+        Route.Root ->
+            ( ModuleA, PageId "dashboard" )
+
+        Route.ModuleADashboard ->
+            ( ModuleA, PageId "dashboard" )
+
+        Route.ModuleAAnalytics ->
+            ( ModuleA, PageId "analytics" )
+
+        Route.ModuleAReports ->
+            ( ModuleA, PageId "reports" )
+
+        Route.ModuleBOverview ->
+            ( ModuleB, PageId "overview" )
+
+        Route.ModuleBDetails ->
+            ( ModuleB, PageId "details" )
+
+        Route.ModuleBSettings ->
+            ( ModuleB, PageId "settings" )
+
+        Route.ModuleCHome ->
+            ( ModuleC, PageId "home" )
+
+        Route.ModuleCProfile ->
+            ( ModuleC, PageId "profile" )
+
+        Route.ModuleCPreferences ->
+            ( ModuleC, PageId "preferences" )
+
+
+moduleAndPageToRoute : ModuleId -> PageId -> Route
+moduleAndPageToRoute moduleId (PageId pageIdStr) =
+    case ( moduleId, pageIdStr ) of
+        ( ModuleA, "dashboard" ) ->
+            Route.ModuleADashboard
+
+        ( ModuleA, "analytics" ) ->
+            Route.ModuleAAnalytics
+
+        ( ModuleA, "reports" ) ->
+            Route.ModuleAReports
+
+        ( ModuleB, "overview" ) ->
+            Route.ModuleBOverview
+
+        ( ModuleB, "details" ) ->
+            Route.ModuleBDetails
+
+        ( ModuleB, "settings" ) ->
+            Route.ModuleBSettings
+
+        ( ModuleC, "home" ) ->
+            Route.ModuleCHome
+
+        ( ModuleC, "profile" ) ->
+            Route.ModuleCProfile
+
+        ( ModuleC, "preferences" ) ->
+            Route.ModuleCPreferences
+
+        _ ->
+            Route.Root
