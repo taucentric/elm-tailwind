@@ -57,12 +57,27 @@ WORKDIR /app
 RUN npm install && npm run build
 ```
 
+## Build Error Fixed
+
+The actual build error was identified from PR #4's GitHub Actions workflow:
+
+**Error**: Line 25 in `src/Main.elm` used `Boolean` instead of `Bool`
+```elm
+, isModuleSwitcherOpen : Boolean  // ✗ Wrong - JavaScript naming
+```
+
+**Fix**: Changed to use Elm's correct boolean type:
+```elm
+, isModuleSwitcherOpen : Bool     // ✓ Correct - Elm naming
+```
+
 ## Current Project Status
 
 - ✅ NPM dependencies installed
 - ✅ Tailwind CSS builds successfully
-- ✗ Elm compilation blocked by package registry issue
-- The Elm source code (`src/Main.elm`) is valid and should compile successfully once package access is restored
+- ✅ Build error fixed (Boolean → Bool)
+- ✗ Cannot verify build locally due to package registry 403 error
+- The Elm source code should now compile successfully on GitHub Actions
 
 ## Good News: GitHub Actions Should Work
 
